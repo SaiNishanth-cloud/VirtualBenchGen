@@ -1,71 +1,84 @@
-from flask import Flask, render_template, request, redirect, url_for
-import cv2
-import numpy as np
 import os
+import time
+import cv2
+from flask import Flask, render_template, Response, request
 
-# Create a Flask application
 app = Flask(__name__)
+sub = cv2.createBackgroundSubtractorMOG2()  # create background subtractor
 
 
-# Define the route for the home page
 @app.route('/')
-def home():
+def index():
+    """Video upload page."""
     return render_template('index.html')
 
 
-# Define the route for the upload page
 @app.route('/upload', methods=['POST'])
 def upload():
-    # Get the video file from the user
-    file = request.files['file']
-    # Save the file to a temporary location
-    filename = file.filename
-    uploads_dir = os.path.join(app.root_path, 'uploads')
-    if not os.path.exists(uploads_dir):
-        os.makedirs(uploads_dir)
-    file_path = os.path.join(uploads_dir, filename)
-    file.save(file_path)
-    # Read the video file
-    cap = cv2.VideoCapture(file_path)
-    # Create a background subtraction object
-    fgbg = cv2.createBackgroundSubtractorMOG2()
-    # Read the first frame
-    ret, frame = cap.read()
-    # Initialize the background
-    fgbg.apply(frame)
-    # Loop over the frames
-    while True:
-        # Read the next frame
-        ret, frame = cap.read()
-        if not ret:
-            break
-        # Apply the background subtraction algorithm
-        fgmask = fgbg.apply(frame)
-        # Detect the pedestrians in the foreground
-        contours, hierarchy = cv2.findContours(fgmask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-        # Draw the contours on the frame
-        for contour in contours:
-            cv2.drawContours(frame, contour, -1, (0, 255, 0), 2)
-        # Check if the frame has valid dimensions
-        if frame.shape[0] > 0 and frame.shape[1] > 0:
-            # Display the frame
-            cv2.imshow('Frame', frame)
-        # Check if the user wants to quit
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            break
-    # Release the VideoCapture object
+    """Video processing and streaming."""
+    # Get the uploaded file from the request
+    file = request.files['video']
+
+    # Save the uploaded file
+    video_path = 'uploaded_video.mp4'
+    file.save(video_path)
+
+    return Response(gen(video_path),
+                    mimetype='multipart/x-mixed-replace; boundary=frame')
+
+
+def gen(video_path):
+    """Video streaming generator function."""
+    cap = cv2.VideoCapture(video_path)
+
+    # Read until video is completed
+    while cap.isOpened():
+        ret, frame = cap.read()  # import image
+        if not ret:  # if video finishes, repeat
+            cap = cv2.VideoCapture(video_path)
+            continue
+        if ret:  # if there is a frame, continue with code
+            image = cv2.resize(frame, (0, 0), None, 1, 1)  # resize image
+            gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)  # convert image to grayscale
+            fgmask = sub.apply(gray)  # use background subtraction
+            kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))  # kernel for morphology
+            closing = cv2.morphologyEx(fgmask, cv2.MORPH_CLOSE, kernel)
+            opening = cv2.morphologyEx(closing, cv2.MORPH_OPEN, kernel)
+            dilation = cv2.dilate(opening, kernel)
+            retvalbin, bins = cv2.threshold(dilation, 220, 255, cv2.THRESH_BINARY)  # remove shadows
+            contours, hierarchy = cv2.findContours(dilation, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            minarea = 400
+            maxarea = 50000
+            for i in range(len(contours)):  # cycle through all contours in current frame
+                if hierarchy[0, i, 3] == -1:  # consider only parent contours (contours not within others)
+                    area = cv2.contourArea(contours[i])  # area of contour
+                    if minarea < area < maxarea:  # area threshold for contour
+                        # calculate centroid of contour
+                        cnt = contours[i]
+                        M = cv2.moments(cnt)
+                        cx = int(M['m10'] / M['m00'])
+                        cy = int(M['m01'] / M['m00'])
+                        # get bounding points of contour to create rectangle
+                        x, y, w, h = cv2.boundingRect(cnt)
+                        # create a rectangle around contour
+                        cv2.rectangle(image, (x, y), (x + w, y + h), (0, 255, 0), 2)
+                        # print centroid coordinates
+                        cv2.putText(image, str(cx) + "," + str(cy), (cx + 10, cy + 10), cv2.FONT_HERSHEY_SIMPLEX, .3,
+                                    (0, 0, 255), 1)
+                        cv2.drawMarker(image, (cx, cy), (0, 255, 255), cv2.MARKER_CROSS, markerSize=8, thickness=3,
+                                       line_type=cv2.LINE_8)
+
+            frame = cv2.imencode('.jpg', image)[1].tobytes()
+            yield (b'--frame\r\n'b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
+            time.sleep(0.1)
+            key = cv2.waitKey(20)
+            if key == 27:
+                break
+
+    # Release the video capture and close any open windows
     cap.release()
-    # Close all windows
     cv2.destroyAllWindows()
-    # Redirect the user to the results page
-    return redirect(url_for('results'))
-
-
-# Define the route for the results page
-@app.route('/results')
-def results():
-    return "Results page"
 
 
 if __name__ == '__main__':
-    app.run()
+    app.run(debug=True)
