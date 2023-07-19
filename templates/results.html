@@ -2,9 +2,21 @@
 <html>
 <head>
     <title>Pedestrian Detection Results</title>
+    <script type="text/javascript">
+        function displayFrame(frame) {
+            var img = document.getElementById('frame-img');
+            img.src = frame;
+        }
+    </script>
 </head>
 <body>
     <h1>Pedestrian Detection Results</h1>
-    <img src="/static/results.jpg">
+    <img id="frame-img" src="" />
+    <script type="text/javascript">
+        var source = new EventSource("/video_feed");
+        source.addEventListener('frame', function(event) {
+            displayFrame(event.data);
+        });
+    </script>
 </body>
 </html>
