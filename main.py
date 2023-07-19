@@ -69,11 +69,8 @@ def gen(video_path):
                                        line_type=cv2.LINE_8)
 
             frame = cv2.imencode('.jpg', image)[1].tobytes()
-            yield (b'--frame\r\n'b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
+            yield b'--frame\r\n'b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n'
             time.sleep(0.1)
-            key = cv2.waitKey(20)
-            if key == 27:
-                break
 
     # Release the video capture and close any open windows
     cap.release()
@@ -81,4 +78,4 @@ def gen(video_path):
 
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=True, host='0.0.0.0', port=5000)
