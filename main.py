@@ -5,7 +5,6 @@ from flask import Flask, render_template, Response, request
 
 app = Flask(__name__)
 sub = cv2.createBackgroundSubtractorMOG2()  # create background subtractor
-pedestrian_count = 0
 
 
 @app.route('/')
@@ -30,9 +29,6 @@ def upload():
 def gen(video_path):
     """Video streaming generator function."""
     cap = cv2.VideoCapture(video_path)
-
-    global pedestrian_count
-    pedestrian_count = 0
 
     # Read until video is completed
     while cap.isOpened():
@@ -68,14 +64,6 @@ def gen(video_path):
                                 (0, 0, 255), 1)
                     cv2.drawMarker(frame, (cx, cy), (0, 255, 255), cv2.MARKER_CROSS, markerSize=8, thickness=3,
                                    line_type=cv2.LINE_8)
-
-                    # Increment pedestrian count
-                    pedestrian_count += 1
-
-        # Add timestamp and pedestrian count to the frame
-        timestamp = time.strftime('%Y-%m-%d %H:%M:%S')
-        cv2.putText(frame, f"Pedestrians: {pedestrian_count}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 255), 2)
-        cv2.putText(frame, timestamp, (10, frame.shape[0] - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1)
 
         # Encode the processed frame to JPEG format and yield it
         encoded_frame = cv2.imencode('.jpg', frame)[1].tobytes()
