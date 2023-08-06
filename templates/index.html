@@ -1,13 +1,12 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Pedestrian Detection</title>
+    <title>Video Upload</title>
 </head>
 <body>
-    <h1>Pedestrian Detection</h1>
-    <p>This application allows you to upload a video file and detect pedestrians in the video.</p>
+    <h1>Upload a video</h1>
     <form action="/upload" method="post" enctype="multipart/form-data">
-        <input type="file" name="video">
+        <input type="file" name="video" accept="video/*">
         <input type="submit" value="Upload">
     </form>
 </body>

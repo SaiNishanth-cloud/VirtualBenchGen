@@ -1,7 +1,7 @@
 import os
 import time
 import cv2
-from flask import Flask, render_template, Response, request
+from flask import Flask, render_template, Response, request, send_file
 
 app = Flask(__name__)
 sub = cv2.createBackgroundSubtractorMOG2()  # create background subtractor
@@ -15,7 +15,7 @@ def index():
 
 @app.route('/upload', methods=['POST'])
 def upload():
-    """Video processing and streaming."""
+    """Video processing and saving."""
     # Get the uploaded file from the request
     file = request.files['video']
 
@@ -23,12 +23,18 @@ def upload():
     video_path = 'uploaded_video.mp4'
     file.save(video_path)
 
-    return Response(gen(video_path), mimetype='multipart/x-mixed-replace; boundary=frame')
+    # Process the video and save the result
+    result_path = 'result_video.mp4'
+    process_video(video_path, result_path)
+
+    # Redirect to the result page
+    return render_template('result.html')
 
 
-def gen(video_path):
-    """Video streaming generator function."""
-    cap = cv2.VideoCapture(video_path)
+def process_video(input_path, output_path):
+    """Process the video."""
+    cap = cv2.VideoCapture(input_path)
+    out = cv2.VideoWriter(output_path, cv2.VideoWriter_fourcc(*'mp4v'), 30, (int(cap.get(3)), int(cap.get(4))))
 
     # Read until video is completed
     while cap.isOpened():
@@ -65,14 +71,32 @@ def gen(video_path):
                     cv2.drawMarker(frame, (cx, cy), (0, 255, 255), cv2.MARKER_CROSS, markerSize=8, thickness=3,
                                    line_type=cv2.LINE_8)
 
-        # Encode the processed frame to JPEG format and yield it
-        encoded_frame = cv2.imencode('.jpg', frame)[1].tobytes()
-        yield b'--frame\r\n'b'Content-Type: image/jpeg\r\n\r\n' + encoded_frame + b'\r\n'
-        time.sleep(0.1)
+        # Write the processed frame to the output video
+        out.write(frame)
 
-    # Release the video capture and close any open windows
+    # Release the video capture and writer
     cap.release()
-    cv2.destroyAllWindows()
+    out.release()
+
+
+@app.route('/result')
+def result():
+    """Result page to download the processed video."""
+    result_path = 'result_video.mp4'
+    if os.path.exists(result_path):
+        return render_template('result.html')
+    else:
+        return "Video is being processed. Please wait and refresh this page."
+
+
+@app.route('/download_result')
+def download_result():
+    """Download the processed video."""
+    result_path = 'result_video.mp4'
+    if os.path.exists(result_path):
+        return send_file(result_path, as_attachment=True)
+    else:
+        return "Video is being processed. Please wait and try again later."
 
 
 if __name__ == '__main__':
