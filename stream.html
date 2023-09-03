@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Live Stream</title>
+    <link href="https://vjs.zencdn.net/7.15.4/video-js.css" rel="stylesheet">
+    <script src="https://vjs.zencdn.net/7.15.4/video.js"></script>
+</head>
+<body>
+    <h1>Live Stream</h1>
+    <video
+        id="my-video"
+        class="video-js"
+        controls
+        preload="auto"
+        width="640"
+        height="360"
+        data-setup='{"techOrder": ["flash", "html5"]}'
+    >
+        <source src="rtmp://your-server-url/live/stream" type="rtmp/mp4">
+        <!-- Fallback to Flash if RTMP is not supported by the browser -->
+        <source src="http://your-server-url/live/stream.m3u8" type="application/x-mpegURL">
+    </video>
+
+    <script>
+        var player = videojs('my-video');
+        player.play(); // Autoplay the video
+    </script>
+</body>
+</html>
